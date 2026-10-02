@@ -1,0 +1,54 @@
+# Autofilled by tools/new_project_layout/probe_disc.py from your legal dump.
+# Review before shipping. Runtime quirks / overlay seeds still need hand work.
+
+[game]
+name = "TomJerry"
+id = "SLES-03181"
+players = 2
+exe = "disc/SLES_031.81"
+disc = "C:/archivio/psxrecompTOMEJERRY/Tom and Jerry in House Trap (E) (En,Fr,De,Es,It,Nl,Da).cue"
+load_address = "0x80010000"
+entry_pc = "0x8001380C"
+text_size = "0x0002C000"
+stack_base = "0x801FFFF0"
+
+# Digests are for data Track 01 (first BINARY FILE / TRACK 01).
+[prepare_disc]
+out_dir = "disc"
+bin_name = "Tom and Jerry in House Trap (E) (En,Fr,De,Es,It,Nl,Da).bin"
+cue_name = "Tom and Jerry in House Trap (E) (En,Fr,De,Es,It,Nl,Da).cue"
+boot_exe = "SLES_031.81"
+known_sizes = [126596400]
+known_md5 = [
+  "3702c68b252255fcd30c4fffc85706c7",
+]
+known_sha1 = [
+  "494183e2a4743dc2fd9835839dc5f76a91d7f2a7",
+]
+known_crc32 = [
+  "b3f735f1",
+]
+
+[recompiler]
+seeds = "seeds/ghidra_funcs.txt"
+out_dir = "generated"
+strict = true
+
+[runtime]
+window_title = "TomJerry Recompiled"
+memcard_dir = "saves"
+overlay_cache = true
+
+[video]
+renderer = "opengl"
+aspect_ratio = "4:3"
+
+[controller]
+default_mode = "digital"
+
+# Online mount gate: digests + track count + optional TOC fingerprint
+# (see docs/NETPLAY.md).
+[netplay]
+require_cue = true
+required_tracks = 2
+required_disc_fp = "cd42d4dd29c2460172543c9e8c280bc9acbda5745db39e795b67ef81bba6da9c"

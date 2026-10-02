@@ -1,0 +1,13 @@
+{
+  "$schema": "https://recomp.fyi/schema/v1.json",
+  "game": "TomJerry",
+  "system": "PS1",
+  "type": "recomp",
+  "toolchain": "psxrecomp",
+  "status": "exploring",
+  "project": "TomJerryRecomp",
+  "original": {
+    "region": "Europe",
+    "serial": "SLES-03181"
+  }
+}

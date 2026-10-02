@@ -1,0 +1,29 @@
+{
+  "cue_path": "C:\\archivio\\psxrecompTOMEJERRY\\Tom and Jerry in House Trap (E) (En,Fr,De,Es,It,Nl,Da).cue",
+  "cue_name": "Tom and Jerry in House Trap (E) (En,Fr,De,Es,It,Nl,Da).cue",
+  "bin_name": "Tom and Jerry in House Trap (E) (En,Fr,De,Es,It,Nl,Da).bin",
+  "track_count": 2,
+  "data_track_size": 126596400,
+  "data_track_md5": "3702c68b252255fcd30c4fffc85706c7",
+  "data_track_sha1": "494183e2a4743dc2fd9835839dc5f76a91d7f2a7",
+  "data_track_crc32": "b3f735f1",
+  "boot_exe": "SLES_031.81",
+  "serial": "SLES-03181",
+  "serial_exe": "SLES_031.81",
+  "volume_id": "",
+  "display_name": "TomJerry",
+  "load_address": "0x80010000",
+  "entry_pc": "0x8001380C",
+  "text_size": "0x0002C000",
+  "stack_base": "0x801FFFF0",
+  "require_cue": true,
+  "required_disc_fp": "cd42d4dd29c2460172543c9e8c280bc9acbda5745db39e795b67ef81bba6da9c",
+  "boot_exe_sha256": "bcea7adeea8d0037f68b1a2b11a64ec6cf964c8f9564de0d7ef3c5a487ec7d36",
+  "seed_count": 314,
+  "warnings": [],
+  "notes": [
+    "entry_pc/load_address/text_size/stack_base taken from PS-X EXE header.",
+    "seeds are first-pass boot-EXE JAL targets (+ entry); expect to grow as overlays / runtime paths are discovered.",
+    "required_disc_fp is psxrecomp-toc-v1 (matches runtime DiscIdentity)."
+  ]
+}
