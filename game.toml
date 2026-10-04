@@ -52,3 +52,9 @@ default_mode = "digital"
 require_cue = true
 required_tracks = 2
 required_disc_fp = "cd42d4dd29c2460172543c9e8c280bc9acbda5745db39e795b67ef81bba6da9c"
+
+[widescreen]
+gte_game_mode = true
+
+[widescreen.cull]
+branch_keep_sites = ["0x80077780", "0x800777A4", "0x800778C4", "0x800778E0", "0x80077A60", "0x80077A84", "0x80077BDC", "0x80077BF8", "0x80077D74", "0x80077D98", "0x80077F78", "0x80077F9C", "0x800780A0", "0x800780BC", "0x80078208", "0x8007822C", "0x80078358", "0x80078374", "0x800784B0", "0x800784D4", "0x80062C48", "0x80062C98"]

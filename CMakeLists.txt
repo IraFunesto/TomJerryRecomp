@@ -61,3 +61,7 @@ foreach(_PSX_RUNTIME_CONFIG game.toml game_options.toml)
             VERBATIM)
     endif()
 endforeach()
+
+# Game-owned trusted plugin: widescreen mod for Tom and Jerry.
+target_sources(psx-runtime PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/plugins/mod_tomjerry_widescreen.c")

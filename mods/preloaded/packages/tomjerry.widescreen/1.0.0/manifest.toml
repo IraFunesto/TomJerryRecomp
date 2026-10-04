@@ -1,0 +1,67 @@
+format_version = 5
+id = "tomjerry.widescreen"
+version = "1.0.0"
+name = "Tom & Jerry Widescreen"
+author = "TomJerryRecomp"
+description = "Native-wide widescreen presentation for Tom and Jerry in House-Trap."
+resolver = "declarative"
+save_compatibility = "shared"
+
+[[target]]
+game_id = "SLES-03181"
+
+[[feature]]
+id = "widescreen"
+name = "Widescreen"
+description = "Disabled by default. Renders a wider field of view instead of stretching the 4:3 picture. Menus and videos stay 4:3."
+group = "Display"
+default_enabled = false
+
+[[option]]
+feature = "widescreen"
+id = "aspect"
+label = "Aspect ratio"
+description = "Fit follows the shape of the window, starting from 16:9. The other choices are fixed."
+group = "Display"
+type = "choice"
+default = "fit"
+
+[[option.choice]]
+value = "fit"
+label = "Fit to window"
+
+[[option.choice]]
+value = "16-9"
+label = "16:9"
+
+[[option.choice]]
+value = "21-9"
+label = "21:9"
+
+[[option.choice]]
+value = "32-9"
+label = "32:9"
+
+[[plugin]]
+feature = "widescreen"
+id = "tomjerry.widescreen"
+
+# The floor is a tile grid (87 units per column) drawn by the overlay function
+# at 0x80043634, which only submits columns within centre +-(7 + 2*rows/3) of
+# the followed character. That window matches the 4:3 view, so wider views
+# showed black strips that slid with the camera. Raising 7 to 64 lets the
+# existing clamp to [0, cols] draw the whole room grid (at most 30x8 tiles).
+# Overlay file sector LBA 170; offsets are lba*2048 + byte.
+[[patch]]
+feature = "widescreen"
+target = "disc_user"
+offset = 348660                 # 0x80043734 addiu v0,a1,-7
+expected = "f9 ff a2 24"
+replace = "c0 ff a2 24"         # addiu v0,a1,-64
+
+[[patch]]
+feature = "widescreen"
+target = "disc_user"
+offset = 348700                 # 0x8004375C addiu v0,a1,7
+expected = "07 00 a2 24"
+replace = "40 00 a2 24"         # addiu v0,a1,64
