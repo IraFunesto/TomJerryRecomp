@@ -49,6 +49,10 @@ fi
 if [[ -d "${ROOT}/src" ]]; then
   EXTRA_PROJECT+=(--project-dir src)
 fi
+# Same for plugins/: CMakeLists.txt compiles plugins/mod_tomjerry_widescreen.c.
+if [[ -d "${ROOT}/plugins" ]]; then
+  EXTRA_PROJECT+=(--project-dir plugins)
+fi
 # Preloaded mod packages (mods/preloaded/packages/<id>). The activation plugin
 # above is compiled in, but selects itself through these marker files; without
 # them the mod is built and never enabled.
