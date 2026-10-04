@@ -71,31 +71,6 @@ filtering, save states, netplay with rollback, controller rumble.
 The download contains no game data and no Sony BIOS; OpenBIOS (MIT-licensed)
 is used when you do not provide your own.
 
-<!-- retcomm-readme-launcher -->
-## Retro Launcher
-
-You can run this title **standalone** (release zip + the built-in recomp-ui
-Generate & Build flow), or manage installs, updates, ROM/BIOS wiring, and queued
-builds more intuitively with
-**[Retro Launcher](https://github.com/RetroPortingToolKit/Retro-Launcher)** —
-the Retro Compilation Manager hub for self-compiling recomps.
-
-[Downloads](https://github.com/RetroPortingToolKit/Retro-Launcher/releases) ·
-[Full README & features](https://github.com/RetroPortingToolKit/Retro-Launcher#readme)
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/RetroPortingToolKit/Retro-Launcher/main/docs/screenshots/hub-and-game-launcher.png" alt="Retro hub with a background build, next to a title’s recomp-ui launcher" width="720">
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/RetroPortingToolKit/Retro-Launcher/main/docs/screenshots/queue-and-background-build.png" alt="Background cmake build with titles queued" width="720">
-</p>
-
-Retro checks for updates, rebuilds with existing build data when possible,
-shares the portable toolchain used by per-title launchers, and automates
-BIOS/ROM/save plumbing so you are not stuck repeating each game’s wizard by hand.
-<!-- /retcomm-readme-launcher -->
-
 ## Legal
 
 You must own the original game. Disc images under `disc/` are gitignored and
