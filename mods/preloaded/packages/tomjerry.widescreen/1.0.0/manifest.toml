@@ -42,6 +42,31 @@ label = "21:9"
 value = "32-9"
 label = "32:9"
 
+[[option]]
+feature = "widescreen"
+id = "hud_size"
+label = "HUD size"
+description = "Draws the in-game HUD smaller so its low-resolution art looks sharper. 100% is the original size."
+group = "Display"
+type = "choice"
+default = "75"
+
+[[option.choice]]
+value = "100"
+label = "100%"
+
+[[option.choice]]
+value = "85"
+label = "85%"
+
+[[option.choice]]
+value = "75"
+label = "75%"
+
+[[option.choice]]
+value = "65"
+label = "65%"
+
 [[plugin]]
 feature = "widescreen"
 id = "tomjerry.widescreen"
