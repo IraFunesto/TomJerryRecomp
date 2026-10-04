@@ -17,6 +17,13 @@ description = "Disabled by default. Renders a wider field of view instead of str
 group = "Display"
 default_enabled = false
 
+[[feature]]
+id = "italian-text-fix"
+name = "Italian text fix"
+description = "Shows \"SI\" correctly in the Italian menus. The original text uses an accented I that the game's font does not have, so it appeared as an orange block."
+group = "Fixes"
+default_enabled = true
+
 [[option]]
 feature = "widescreen"
 id = "aspect"
@@ -84,6 +91,23 @@ label = "30 fps (NTSC)"
 value = "25"
 label = "25 fps (PAL)"
 
+[[option]]
+feature = "widescreen"
+id = "high_refresh_vsync"
+label = "VSync on high-refresh monitors"
+description = "Keeps vertical sync on when the monitor runs above 60 Hz (120/144/165 Hz), so fast motion does not tear. Game speed is unchanged. OpenGL renderer."
+group = "Display"
+type = "choice"
+default = "on"
+
+[[option.choice]]
+value = "on"
+label = "On"
+
+[[option.choice]]
+value = "off"
+label = "Off"
+
 [[plugin]]
 feature = "widescreen"
 id = "tomjerry.widescreen"
@@ -109,14 +133,30 @@ expected = "07 00 a2 24"
 replace = "40 00 a2 24"         # addiu v0,a1,64
 
 # NTSC timing: libgpu PutDispEnv starts the visible area at screen.y + 16 on
-# NTSC (+19 on PAL). The game's DISPENV uses screen.y = 24 to centre its 240
-# lines on PAL, which on NTSC pushes the bottom 24 lines off screen. Start the
-# NTSC branch at screen.y - 8 (line 16) instead; the PAL branch is untouched.
+# NTSC (+19 on PAL). The game centres its PAL pictures with screen.y (24 in
+# play, more on the LOADING screen), which on NTSC pushes them down and cuts
+# off the bottom. Start every NTSC picture at line 16, the standard NTSC top;
+# the PAL branch is untouched.
 [[patch]]
 feature = "widescreen"
 target = "main_exe"
 address = 0x80022A00
 expected = "10 00 90 24"        # addiu s0,a0,16
-replace = "f8 ff 90 24"         # addiu s0,a0,-8
+replace = "10 00 10 24"         # addiu s0,zero,16
 when = { frame_rate = "ntsc" }
 
+# "SÌ" is stored as Latin-1 0xCC, which the game's font has no glyph for (it
+# samples an orange gradient instead). Plain "I" (0x49) renders correctly.
+[[patch]]
+feature = "italian-text-fix"
+target = "disc_user"
+offset = 70413                  # LBA 34: options menu "SÌ"
+expected = "cc"
+replace = "49"
+
+[[patch]]
+feature = "italian-text-fix"
+target = "disc_user"
+offset = 320421                 # LBA 156: pause menu "SÌ"
+expected = "cc"
+replace = "49"

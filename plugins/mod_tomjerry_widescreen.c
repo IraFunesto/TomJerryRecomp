@@ -38,6 +38,30 @@
 #define LIBGPU_VIDEO_MODE 0x8002C110u
 static int s_force_ntsc_timing = 0;
 
+/* The runtime only lets the driver vsync when the monitor refresh equals the
+ * guest rate (within 2%); on a 120/144/165 Hz panel it presents unsynced and
+ * fast motion tears. Like DuckStation, keep the swap synced anyway: the
+ * runtime's wall-clock pacer still holds the game at 60 fps and every frame
+ * waits for the next panel refresh. OpenGL only (gpu_gl_renderer.c; a no-op
+ * without a GL context). Not part of the mod API, but this trusted plugin is
+ * linked into the same executable and VBlank callbacks run on the thread
+ * that owns the GL context, right before it presents. */
+extern void gl_renderer_set_swap_interval(int interval);
+#define VSYNC_REASSERT_VBLANKS 60u
+static int s_force_vsync = 0;
+
+/* In-match flag for the runtime's [widescreen] gameplay_state gate (game.toml).
+ * The gameplay overlay is already resident while the LOADING screen still
+ * shows, so "overlay loaded" is not "in a match": a match draws its HUD every
+ * frame (and the pause menu sets PAUSE_MENU_FLAG). Publish that in a spare,
+ * never-written word -- the unused tail of the top view's DR_ENV slot -- only
+ * while the gameplay overlay owns that memory. */
+#define PAUSE_MENU_FLAG  0x8006A69Cu   /* 1 while the pause menu loop runs */
+#define GATE_WORD        0x8006B730u
+#define GATE_IN_MATCH    0x534A5754u   /* "TWJS" */
+#define GATE_HUD_VBLANKS 8u
+static uint32_t s_last_hud_vblank;
+
 /* HUD size option, in percent. 100 keeps the stock SPRT path untouched. */
 static int s_hud_percent = 100;
 
@@ -286,11 +310,71 @@ static void patch_view_gap(void) {
         patch_bottom_view_env(VIEW_ENV_FIRST + VIEW_ENV_SLOT * k);
 }
 
+/* ---- display position (PutDispEnv) ----------------------------------------- */
+
+/* Gameplay centres its picture on a PAL TV with DISPENV screen.y = 24. The
+ * LOADING screens draw their art 12 (or 4) rows down in VRAM and compensate
+ * with screen.y = 12 (or 20), lifting the picture on the TV. The recompiled
+ * presenter shows display rows from the VRAM start and ignores that vertical
+ * position, so those screens appeared with a black band on top and their
+ * bottom cut off. Turn the vertical position into a display-start offset
+ * instead: disp.y += 24 - screen.y, screen.y = 24. Gameplay (24) is untouched.
+ * Each DISPENV remembers its offset so a later disp.y rewrite (buffer flip)
+ * is shifted again, never twice. */
+#define PUT_DISP_ENV      0x80022788u
+#define PUT_DISP_ENV_W0   0x27BDFFE0u   /* addiu sp,sp,-32 */
+#define SCREEN_Y_GAMEPLAY 24
+#define DISPENV_SLOTS     8u
+
+static struct {
+    uint32_t env;
+    int16_t shift;
+    int16_t last_y;
+} s_dispenv[DISPENV_SLOTS];
+
+static void tomjerry_put_disp_env_entry(struct CPUState* cpu, uint32_t address) {
+    (void)address;
+    if (psx_mod_read_word(PUT_DISP_ENV) != PUT_DISP_ENV_W0) return;
+    uint32_t env = cpu->gpr[4];                         /* a0 = DISPENV* */
+    if (!ram_address(env)) return;
+    int16_t disp_y = (int16_t)psx_mod_read_half(env + 2u);
+    int16_t screen_y = (int16_t)psx_mod_read_half(env + 10u);
+
+    uint32_t slot = DISPENV_SLOTS;
+    for (uint32_t i = 0; i < DISPENV_SLOTS; ++i)
+        if (s_dispenv[i].env == env) { slot = i; break; }
+
+    if (screen_y != SCREEN_Y_GAMEPLAY) {
+        int shift = SCREEN_Y_GAMEPLAY - screen_y;
+        if (shift <= 0 || shift > 32) return;           /* only the known lift */
+        /* screen.y counts scanlines; an interlaced (480-line) picture has two
+         * VRAM rows per scanline. */
+        if (psx_mod_read_byte(env + 16u) || psx_mod_read_half(env + 6u) > 256u)
+            shift *= 2;
+        if (slot == DISPENV_SLOTS) {
+            for (uint32_t i = 0; i < DISPENV_SLOTS; ++i)
+                if (!s_dispenv[i].env) { slot = i; break; }
+            if (slot == DISPENV_SLOTS) slot = 0;
+        }
+        disp_y = (int16_t)(disp_y + shift);
+        psx_mod_write_half(env + 2u, (uint16_t)disp_y);
+        psx_mod_write_half(env + 10u, (uint16_t)SCREEN_Y_GAMEPLAY);
+        s_dispenv[slot].env = env;
+        s_dispenv[slot].shift = (int16_t)shift;
+        s_dispenv[slot].last_y = disp_y;
+    } else if (slot != DISPENV_SLOTS && disp_y != s_dispenv[slot].last_y) {
+        disp_y = (int16_t)(disp_y + s_dispenv[slot].shift);
+        psx_mod_write_half(env + 2u, (uint16_t)disp_y);
+        s_dispenv[slot].last_y = disp_y;
+    }
+}
+
 static int tomjerry_hud_sprite_filter(struct CPUState* cpu, uint32_t address) {
     (void)address;
     if (psx_mod_widescreen_x_margin() <= 0) return 0;
     /* Another overlay can occupy the same address outside gameplay. */
     if (!hud_overlay_resident()) return 0;
+    s_last_hud_vblank = s_vblank;
     patch_view_gap();
 
     if (s_hud_percent < 100) {
@@ -313,6 +397,17 @@ static int tomjerry_hud_sprite_filter(struct CPUState* cpu, uint32_t address) {
 
 static void tomjerry_hud_vblank(void) {
     ++s_vblank;
+    /* Re-assert periodically: the runtime resets the interval whenever the
+     * window changes display or the panel refresh changes. */
+    if (s_force_vsync && s_vblank % VSYNC_REASSERT_VBLANKS == 1u)
+        gl_renderer_set_swap_interval(1);
+    if (hud_overlay_resident()) {
+        int in_match = s_vblank - s_last_hud_vblank <= GATE_HUD_VBLANKS ||
+                       psx_mod_read_word(PAUSE_MENU_FLAG) == 1u;
+        uint32_t want = in_match ? GATE_IN_MATCH : 0u;
+        if (psx_mod_read_word(GATE_WORD) != want)
+            psx_mod_write_word(GATE_WORD, want);
+    }
     if (s_force_ntsc_timing && psx_mod_game_started() &&
         psx_mod_read_word(LIBGPU_VIDEO_MODE) == 1u)
         psx_mod_write_word(LIBGPU_VIDEO_MODE, 0u);
@@ -338,7 +433,6 @@ static void tomjerry_hud_vblank(void) {
  * rendering the room: the last frame stays on screen and only the menu text
  * is drawn over it, so the classifier would fall back to a 4:3 menu frame.
  * Hold the gameplay classification for exactly that state. */
-#define PAUSE_MENU_FLAG 0x8006A69Cu
 
 static int tomjerry_retained_scene(void) {
     if (psx_mod_widescreen_x_margin() <= 0) return PSX_MOD_SCENE_RELEASE;
@@ -376,10 +470,18 @@ static void tomjerry_widescreen_activate(void) {
         strcmp(rate, "25") == 0)
         s_force_ntsc_timing = 0;
 
-    fprintf(stdout, "TOMJERRY WIDESCREEN PLUGIN ACTIVATED (%s, HUD %d%%, %s fps)\n",
-            aspect, s_hud_percent, s_force_ntsc_timing ? "30" : "25");
+    char vsync[8];
+    s_force_vsync = 1;
+    if (psx_mod_option_value(PKG, FEATURE, "high_refresh_vsync", vsync, sizeof vsync) &&
+        strcmp(vsync, "off") == 0)
+        s_force_vsync = 0;
+
+    fprintf(stdout, "TOMJERRY WIDESCREEN PLUGIN ACTIVATED (%s, HUD %d%%, %s fps, vsync %s)\n",
+            aspect, s_hud_percent, s_force_ntsc_timing ? "30" : "25",
+            s_force_vsync ? "forced" : "runtime");
     memset(s_hud_tags, 0, sizeof s_hud_tags);
     memset(s_bar_shadow, 0, sizeof s_bar_shadow);
+    memset(s_dispenv, 0, sizeof s_dispenv);
     s_hud_tag_next = 0;
     s_vblank = 0;
     (void)psx_mod_set_fixed_display_aspect(num, den);
@@ -395,4 +497,6 @@ PSX_MOD_CONSTRUCTOR(psx_register_tomjerry_widescreen_plugin) {
         "tomjerry.widescreen", HUD_SPRITE_FN, tomjerry_hud_sprite_filter);
     (void)psx_mod_register_vblank_plugin(
         "tomjerry.widescreen", tomjerry_hud_vblank);
+    (void)psx_mod_register_function_entry_plugin(
+        "tomjerry.widescreen", PUT_DISP_ENV, tomjerry_put_disp_env_entry);
 }
