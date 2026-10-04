@@ -29,6 +29,15 @@
 #define BAR_PACKETS     0x1A4u        /* 368 + 52 */
 #define BAR_PACKET_N    6
 
+/* libgpu's video mode (SetVideoMode/GetVideoMode at 0x8001F33C/0x8001F350):
+ * 1 = PAL, 0 = NTSC. Only libgpu reads it -- PutDispEnv turns it into the
+ * GP1(08h) PAL bit every frame -- so holding it at NTSC runs the console on
+ * NTSC video timing (60 Hz VBlank, 263 lines) while the CPU, SPU and timers
+ * keep their real speed, like an NTSC console or DuckStation's
+ * "Force NTSC Timings". */
+#define LIBGPU_VIDEO_MODE 0x8002C110u
+static int s_force_ntsc_timing = 0;
+
 /* HUD size option, in percent. 100 keeps the stock SPRT path untouched. */
 static int s_hud_percent = 100;
 
@@ -253,6 +262,9 @@ static int tomjerry_hud_sprite_filter(struct CPUState* cpu, uint32_t address) {
 
 static void tomjerry_hud_vblank(void) {
     ++s_vblank;
+    if (s_force_ntsc_timing && psx_mod_game_started() &&
+        psx_mod_read_word(LIBGPU_VIDEO_MODE) == 1u)
+        psx_mod_write_word(LIBGPU_VIDEO_MODE, 0u);
     if (psx_mod_widescreen_x_margin() <= 0) return;
     for (uint32_t i = 0; i < HUD_TAG_SLOTS; ++i) {
         if (!s_hud_tags[i].packet) continue;
@@ -284,7 +296,7 @@ static int tomjerry_retained_scene(void) {
 }
 
 static void tomjerry_widescreen_activate(void) {
-    char aspect[16], hud[16];
+    char aspect[16], hud[16], rate[16];
     unsigned num = 16u, den = 9u;
     int fit = 1;
 
@@ -302,8 +314,18 @@ static void tomjerry_widescreen_activate(void) {
             s_hud_percent = pct;
     }
 
-    fprintf(stdout, "TOMJERRY WIDESCREEN PLUGIN ACTIVATED (%s, HUD %d%%)\n",
-            aspect, s_hud_percent);
+    /* Frame rate. The game advances one fixed step per frame and a frame
+     * takes the PS1 CPU just over one VBlank, so it shows a new frame every
+     * second VBlank: 25 fps on PAL timing, 30 fps on NTSC timing -- the speed
+     * the game was designed for (the PAL release does not compensate). Music
+     * runs off the SPU and timers, which keep their real speed either way. */
+    s_force_ntsc_timing = 1;
+    if (psx_mod_option_value(PKG, FEATURE, "frame_rate", rate, sizeof rate) &&
+        strcmp(rate, "25") == 0)
+        s_force_ntsc_timing = 0;
+
+    fprintf(stdout, "TOMJERRY WIDESCREEN PLUGIN ACTIVATED (%s, HUD %d%%, %s fps)\n",
+            aspect, s_hud_percent, s_force_ntsc_timing ? "30" : "25");
     memset(s_hud_tags, 0, sizeof s_hud_tags);
     memset(s_bar_shadow, 0, sizeof s_bar_shadow);
     s_hud_tag_next = 0;

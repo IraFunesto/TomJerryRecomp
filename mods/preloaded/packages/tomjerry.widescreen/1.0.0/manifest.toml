@@ -67,6 +67,23 @@ label = "75%"
 value = "65"
 label = "65%"
 
+[[option]]
+feature = "widescreen"
+id = "frame_rate"
+label = "Frame rate"
+description = "30 fps runs the console on NTSC video timing, the speed the game was designed for. 25 fps is the original PAL release. Music is unchanged either way."
+group = "Display"
+type = "choice"
+default = "ntsc"
+
+[[option.choice]]
+value = "ntsc"
+label = "30 fps (NTSC)"
+
+[[option.choice]]
+value = "25"
+label = "25 fps (PAL)"
+
 [[plugin]]
 feature = "widescreen"
 id = "tomjerry.widescreen"
@@ -90,3 +107,16 @@ target = "disc_user"
 offset = 348700                 # 0x8004375C addiu v0,a1,7
 expected = "07 00 a2 24"
 replace = "40 00 a2 24"         # addiu v0,a1,64
+
+# NTSC timing: libgpu PutDispEnv starts the visible area at screen.y + 16 on
+# NTSC (+19 on PAL). The game's DISPENV uses screen.y = 24 to centre its 240
+# lines on PAL, which on NTSC pushes the bottom 24 lines off screen. Start the
+# NTSC branch at screen.y - 8 (line 16) instead; the PAL branch is untouched.
+[[patch]]
+feature = "widescreen"
+target = "main_exe"
+address = 0x80022A00
+expected = "10 00 90 24"        # addiu s0,a0,16
+replace = "f8 ff 90 24"         # addiu s0,a0,-8
+when = { frame_rate = "ntsc" }
+
