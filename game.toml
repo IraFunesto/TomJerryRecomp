@@ -63,6 +63,13 @@ required_disc_fp = "5c3c0cff34cb23a5df57a4fc4021c59572dc3f55186e2cc90c3a22fbe71c
 
 [widescreen]
 gte_game_mode = true
+# Native-wide only while the gameplay overlay is resident: DrawHudSprite's
+# first instruction (0x8004883C = addiu sp,sp,-56) exists only there. The
+# level-select book animates its page turns in 3D, which fooled the GTE
+# classifier into wide frames whose 4:3-only background left trails at the
+# sides; pause and every in-match frame keep the overlay, so stay wide.
+gameplay_state_addr = "0x8004883C"
+gameplay_state_values = ["0x27BDFFC8"]
 
 [widescreen.cull]
 branch_keep_sites = ["0x80077780", "0x800777A4", "0x800778C4", "0x800778E0", "0x80077A60", "0x80077A84", "0x80077BDC", "0x80077BF8", "0x80077D74", "0x80077D98", "0x80077F78", "0x80077F9C", "0x800780A0", "0x800780BC", "0x80078208", "0x8007822C", "0x80078358", "0x80078374", "0x800784B0", "0x800784D4", "0x80062C48", "0x80062C98"]
