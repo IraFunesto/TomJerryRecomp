@@ -63,13 +63,23 @@ static int hud_overlay_resident(void) {
 /* Scale about the HUD element's own corner: the viewport top and the screen
  * edge it belongs to, so a widget's pieces shrink together and stay put in
  * their corner. */
-static int32_t scale_len(int32_t v) {
-    return (v * s_hud_percent + 50) / 100;
+/* Round to nearest (halves away from zero): truncation would pull the integer
+ * bar tiles half a pixel off the frame art drawn inside the scaled quads. */
+static int32_t scale_round(int32_t v) {
+    int32_t q = v * s_hud_percent;
+    return q >= 0 ? (q + 50) / 100 : -((-q + 50) / 100);
 }
 
 static int32_t scale_x(int32_t x, int edge) {
     int32_t pivot = edge < 0 ? 0 : display_width();
-    return pivot + ((x - pivot) * s_hud_percent) / 100;
+    return pivot + scale_round(x - pivot);
+}
+
+/* Edges, not lengths, are scaled: two pieces that share an edge (the bar's
+ * red and green segments, a frame and its fill) get the same scaled edge and
+ * stay flush instead of drifting a pixel apart through separate rounding. */
+static int32_t scale_y(int32_t y) {
+    return scale_round(y);
 }
 
 /* ---- health bars ------------------------------------------------------ */
@@ -106,9 +116,10 @@ static void scale_health_bars(void) {
             }
             const int16_t* o = s_bar_shadow[slot].orig;
             int edge = hud_edge_for_x(o[0]);
+            int32_t x0 = scale_x(o[0], edge), x1 = scale_x(o[0] + o[2], edge);
+            int32_t y0 = scale_y(o[1]), y1 = scale_y(o[1] + o[3]);
             int16_t out[4] = {
-                (int16_t)scale_x(o[0], edge), (int16_t)scale_len(o[1]),
-                (int16_t)scale_len(o[2]), (int16_t)scale_len(o[3]),
+                (int16_t)x0, (int16_t)y0, (int16_t)(x1 - x0), (int16_t)(y1 - y0),
             };
             for (int f = 0; f < 4; ++f) {
                 s_bar_shadow[slot].ours[f] = out[f];
@@ -200,7 +211,7 @@ static void draw_hud_sprite_scaled(int32_t x, int32_t y, uint32_t index,
     }
 
     int edge = hud_edge_for_x(x);
-    int32_t x0 = scale_x(x, edge), y0 = scale_len(y);
+    int32_t x0 = scale_x(x, edge), y0 = scale_y(y);
     /* A quad's far UV is the texel edge, not the last texel: u + w maps the
      * whole sprite. A sprite that ends on the page edge (u + w == 256) cannot
      * say 256 in 8 bits; it loses that last column and its quad shrinks with
@@ -209,7 +220,7 @@ static void draw_hud_sprite_scaled(int32_t x, int32_t y, uint32_t index,
     int32_t qw = w, qh = h;
     if (u1 > 0xFFu) { qw -= (int32_t)(u1 - 0xFFu); u1 = 0xFFu; }
     if (v1 > 0xFFu) { qh -= (int32_t)(v1 - 0xFFu); v1 = 0xFFu; }
-    int32_t x1 = x0 + scale_len(qw), y1 = y0 + scale_len(qh);
+    int32_t x1 = scale_x(x + qw, edge), y1 = scale_y(y + qh);
     uint32_t clut = ((uint32_t)cy << 6) | (((uint32_t)cx >> 4) & 0x3Fu);
     uint32_t page = tpage | (((uint32_t)depth & 3u) << 7);
     uint32_t xy0 = ((uint32_t)y0 << 16) | ((uint32_t)x0 & 0xFFFFu);
@@ -236,11 +247,51 @@ static void draw_hud_sprite_scaled(int32_t x, int32_t y, uint32_t index,
     remember_hud_tag((p & 0x00FFFFFFu) | 0x80000000u, edge);
 }
 
+/* ---- split-screen gap ----------------------------------------------------- */
+
+/* Each view has a static 9-word packet in a 64-byte slot: DR_ENV (E3/E4/E5
+ * area and offset, E1/E2/E6) plus a black 512x109 TILE that clears it. The
+ * top view covers rows 10-118 of its buffer and the bottom view rows 120-228,
+ * so row 119 between them belongs to neither: clean in 4:3, but its
+ * native-wide side strips are never redrawn and keep whatever crossed them
+ * (the "CHASE!" banner). Grow the bottom view's area up one row and append two
+ * one-row black TILEs (x -512..1522, wider than any supported aspect) to its
+ * packet; the slot's spare 24 bytes hold exactly those 6 words. The separator
+ * stays black and the top view is untouched. */
+#define VIEW_ENV_FIRST 0x8006B708u
+#define VIEW_ENV_COUNT 4u
+#define VIEW_ENV_SLOT  0x40u
+
+static void patch_bottom_view_env(uint32_t p) {
+    if (psx_mod_read_byte(p + 3u) != 9u) return;        /* stock or already done */
+    uint32_t e3 = psx_mod_read_word(p + 4u);
+    uint32_t e5 = psx_mod_read_word(p + 12u);
+    if ((e3 >> 24) != 0xE3u || (e5 >> 24) != 0xE5u) return;
+    uint32_t top = (e3 >> 10) & 0x3FFu;
+    uint32_t ofs = (e5 >> 11) & 0x7FFu;
+    if (top != ofs || (ofs != 120u && ofs != 360u)) return;  /* bottom views only */
+
+    psx_mod_write_word(p + 4u, (e3 & ~(0x3FFu << 10)) | ((top - 1u) << 10));
+    psx_mod_write_word(p + 40u, 0x60000000u);
+    psx_mod_write_word(p + 44u, (0xFFFFu << 16) | ((uint32_t)-512 & 0xFFFFu));
+    psx_mod_write_word(p + 48u, (1u << 16) | 1023u);
+    psx_mod_write_word(p + 52u, 0x60000000u);
+    psx_mod_write_word(p + 56u, (0xFFFFu << 16) | 500u);
+    psx_mod_write_word(p + 60u, (1u << 16) | 1023u);
+    psx_mod_write_byte(p + 3u, 15u);
+}
+
+static void patch_view_gap(void) {
+    for (uint32_t k = 0; k < VIEW_ENV_COUNT; ++k)
+        patch_bottom_view_env(VIEW_ENV_FIRST + VIEW_ENV_SLOT * k);
+}
+
 static int tomjerry_hud_sprite_filter(struct CPUState* cpu, uint32_t address) {
     (void)address;
     if (psx_mod_widescreen_x_margin() <= 0) return 0;
     /* Another overlay can occupy the same address outside gameplay. */
     if (!hud_overlay_resident()) return 0;
+    patch_view_gap();
 
     if (s_hud_percent < 100) {
         draw_hud_sprite_scaled((int16_t)cpu->gpr[4], (int16_t)cpu->gpr[5],
@@ -275,6 +326,7 @@ static void tomjerry_hud_vblank(void) {
         psx_mod_tag_hud_primitive(s_hud_tags[i].packet, s_hud_tags[i].edge);
     }
     if (hud_overlay_resident()) {
+        patch_view_gap();
         if (s_hud_percent < 100) scale_health_bars();
         tag_health_bars();
     }
