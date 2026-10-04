@@ -33,6 +33,10 @@ known_crc32 = [
 seeds = "seeds/ghidra_funcs.txt"
 out_dir = "generated"
 strict = true
+# Widescreen HUD hook (plugins/mod_tomjerry_widescreen.c): DrawHudSprite in the
+# gameplay overlay. Listing it makes natively compiled overlay shards call the
+# function-entry hook too, not just the interpreter.
+mod_function_entry_funcs = ["0x8004883C"]
 
 [runtime]
 window_title = "TomJerry Recompiled"
