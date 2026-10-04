@@ -1,0 +1,5 @@
+Box art sourced from libretro-thumbnails (Named_Boxarts).
+Matched name: Tom and Jerry in House Trap (Europe) (En,Fr,De,Es,It,Nl,Da)
+URL: https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/Tom%20and%20Jerry%20in%20House%20Trap%20(Europe)%20(En%2CFr%2CDe%2CEs%2CIt%2CNl%2CDa).png
+https://github.com/libretro-thumbnails/libretro-thumbnails
+PNG is for README; TGA is for recomp-ui LAUNCHER_BOXART.
