@@ -55,7 +55,11 @@ default_mode = "digital"
 [netplay]
 require_cue = true
 required_tracks = 2
-required_disc_fp = "cd42d4dd29c2460172543c9e8c280bc9acbda5745db39e795b67ef81bba6da9c"
+# Runtime TOC fingerprint (disc_identity.cpp). The cue's track 2 has a
+# "PREGAP 00:02:00" the dump does not store: the runtime inserts it as 150
+# virtual sectors (track 2 start 40165, leadout 53975), which probe_disc.py's
+# compute_disc_fp ignores -- its value (cd42d4dd...) never matches.
+required_disc_fp = "5c3c0cff34cb23a5df57a4fc4021c59572dc3f55186e2cc90c3a22fbe71c32f6"
 
 [widescreen]
 gte_game_mode = true
